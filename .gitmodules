@@ -4,3 +4,6 @@
 [submodule "ndn-cxx"]
 	path = ndn-cxx
 	url = https://github.com/named-data-ndnSIM/ndn-cxx
+[submodule "ChronoSync"]
+	path = ChronoSync
+	url = https://github.com/spirosmastorakis/ChronoSync
