@@ -19,19 +19,19 @@
  * Author: Spyridon (Spyros) Mastorakis <mastorakis@cs.ucla.edu>
  */
 
- #ifndef SYNC_OVERLAY_NODE_H
- #define SYNC_OVERLAY_NODE_H
+#ifndef SYNC_OVERLAY_NODE_H
+#define SYNC_OVERLAY_NODE_H
 
- #include "ns3/ndnSIM/model/ndn-common.hpp"
+#include "ns3/ndnSIM/model/ndn-common.hpp"
 
- #include "ns3/ndnSIM/apps/ndn-app.hpp"
- #include "ns3/ndnSIM/model/ndn-common.hpp"
+#include "ns3/ndnSIM/apps/ndn-app.hpp"
+#include "ns3/ndnSIM/model/ndn-common.hpp"
 
- #include "ns3/nstime.h"
- #include "ns3/ptr.h"
+#include "ns3/nstime.h"
+#include "ns3/ptr.h"
 
- namespace ns3 {
- namespace ndn {
+namespace ns3 {
+namespace ndn {
 
  /**
   * @ingroup ndn-apps
@@ -42,31 +42,36 @@
   * size and name same as in Interest.cation, which replying every incoming Interest
   * with Data packet with a specified size and name same as in Interest.
   */
- class SyncOverlayNode : public App {
- public:
-   static TypeId
-   GetTypeId(void);
+  class SyncOverlayNode : public App {
+  public:
+    static TypeId
+    GetTypeId(void);
 
-   SyncOverlayNode();
+    SyncOverlayNode();
 
-   // inherited from NdnApp
-   virtual void
-   OnInterest(shared_ptr<const Interest> interest);
+    // inherited from NdnApp
+    virtual void
+    OnInterest(shared_ptr<const Interest> interest);
 
- protected:
-   // inherited from Application base class.
-   virtual void
-   StartApplication(); // Called at time specified by Start
+    // inherited from NdnApp
+    void
+    OnData(shared_ptr<const Data> data);
 
-   virtual void
-   StopApplication(); // Called at time specified by Stop
+  protected:
+    // inherited from Application base class.
+    virtual void
+    StartApplication(); // Called at time specified by Start
 
- private:
-   Name m_prefix;
-   Name m_postfix;
- };
+    virtual void
+    StopApplication(); // Called at time specified by Stop
 
- } // namespace ndn
- } // namespace ns3
+  private:
+    Name m_prefix;
+    Name m_postfix;
+    Name m_overlayPrefix;
+};
 
- #endif // SYNC_OVERLAY_NODE_H
+} // namespace ndn
+} // namespace ns3
+
+#endif // SYNC_OVERLAY_NODE_H

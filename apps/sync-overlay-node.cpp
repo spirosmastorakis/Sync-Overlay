@@ -19,73 +19,153 @@
  * Author: Spyridon (Spyros) Mastorakis <mastorakis@cs.ucla.edu>
  */
 
- #include "sync-overlay-node.hpp"
- #include "ns3/log.h"
- #include "ns3/string.h"
- #include "ns3/uinteger.h"
- #include "ns3/packet.h"
- #include "ns3/simulator.h"
+#include "sync-overlay-node.hpp"
+#include "ns3/log.h"
+#include "ns3/string.h"
+#include "ns3/uinteger.h"
+#include "ns3/packet.h"
+#include "ns3/simulator.h"
 
- #include "model/ndn-ns3.hpp"
- #include "model/ndn-l3-protocol.hpp"
- #include "helper/ndn-fib-helper.hpp"
+#include "model/ndn-ns3.hpp"
+#include "model/ndn-l3-protocol.hpp"
+#include "helper/ndn-fib-helper.hpp"
 
- #include <memory>
+#include <memory>
 
- NS_LOG_COMPONENT_DEFINE("ndn.SyncOverlayNode");
+NS_LOG_COMPONENT_DEFINE("ndn.SyncOverlayNode");
 
- namespace ns3 {
- namespace ndn {
+namespace ns3 {
+namespace ndn {
 
- NS_OBJECT_ENSURE_REGISTERED(SyncOverlayNode);
+NS_OBJECT_ENSURE_REGISTERED(SyncOverlayNode);
 
- TypeId
- SyncOverlayNode::GetTypeId(void)
- {
-   static TypeId tid =
-     TypeId("ns3::ndn::SyncOverlayNode")
-       .SetGroupName("Ndn")
-       .SetParent<App>()
-       .AddConstructor<SyncOverlayNode>()
-       .AddAttribute("Prefix", "Prefix, which the overlay node will announce to the local network", StringValue("/"),
-                     MakeNameAccessor(&SyncOverlayNode::m_prefix), MakeNameChecker())
-       .AddAttribute("Postfix",
-          "Postfix that is added to the output data (e.g., for adding node-uniqueness)",
-          StringValue("/"), MakeNameAccessor(&SyncOverlayNode::m_postfix), MakeNameChecker());
-   return tid;
- }
+TypeId
+SyncOverlayNode::GetTypeId(void)
+{
+  static TypeId tid =
+    TypeId("ns3::ndn::SyncOverlayNode")
+      .SetGroupName("Ndn")
+      .SetParent<App>()
+      .AddConstructor<SyncOverlayNode>()
+      .AddAttribute("Prefix", "Prefix, which the overlay node will announce to the local network", StringValue("/"),
+        MakeNameAccessor(&SyncOverlayNode::m_prefix), MakeNameChecker())
+      .AddAttribute("Postfix",
+        "Postfix that is added to the output data (e.g., for adding node-uniqueness)",
+        StringValue("/"), MakeNameAccessor(&SyncOverlayNode::m_postfix), MakeNameChecker())
+      .AddAttribute("OverlayPrefix",
+        "Sync Overlay Common Prefix",
+        StringValue("/"), MakeNameAccessor(&SyncOverlayNode::m_overlayPrefix), MakeNameChecker());
+  return tid;
+}
 
- SyncOverlayNode::SyncOverlayNode()
- {
+SyncOverlayNode::SyncOverlayNode()
+{
    NS_LOG_FUNCTION_NOARGS();
- }
+}
 
- // inherited from Application base class.
- void
- SyncOverlayNode::StartApplication()
- {
+// inherited from Application base class.
+void
+SyncOverlayNode::StartApplication()
+{
    NS_LOG_FUNCTION_NOARGS();
    App::StartApplication();
 
    FibHelper::AddRoute(GetNode(), m_prefix, m_face, 0);
- }
+   FibHelper::AddRoute(GetNode(), Name(m_overlayPrefix.toUri() + m_prefix.toUri()),
+                       m_face, 0);
+}
 
- void
- SyncOverlayNode::StopApplication()
- {
+void
+SyncOverlayNode::StopApplication()
+{
    NS_LOG_FUNCTION_NOARGS();
 
    App::StopApplication();
- }
+}
 
  void
  SyncOverlayNode::OnInterest(shared_ptr<const Interest> interest)
  {
    App::OnInterest(interest); // tracing inside
 
-   NS_LOG_FUNCTION(this << interest);
+   Name receivedInterestName = interest->getName();
 
- }
+   NS_LOG_INFO("< Received sync Interest with name: " << receivedInterestName.toUri());
 
- } // namespace ndn
- } // namespace ns3
+   // Check where the Interest comes from
+
+   shared_ptr<Interest> relayInterest = make_shared<Interest>(*interest);
+
+   // If it comes from a local network, it has to be sent towards the
+   // overlay network
+
+   if (!m_overlayPrefix.isPrefixOf(receivedInterestName)) {
+     Name overlayPrefix(m_overlayPrefix.toUri() + receivedInterestName.toUri());
+
+     relayInterest->setName(overlayPrefix);
+   }
+   else if (m_overlayPrefix.isPrefixOf(receivedInterestName)) {
+     Name localPrefix = receivedInterestName.getSubName(m_overlayPrefix.size());
+
+     relayInterest->setName(localPrefix);
+
+   }
+   // something went wrong
+   else {
+     NS_LOG_INFO("> Interest with unknown name " << receivedInterestName.toUri());
+     return;
+   }
+
+   NS_LOG_INFO("> Relaying Sync Interest with name " << relayInterest->toUri());
+
+   m_transmittedInterests(relayInterest, this, m_face);
+   m_appLink->onReceiveInterest(*relayInterest);
+
+}
+
+void
+SyncOverlayNode::OnData(shared_ptr<const Data> data)
+{
+   if (!m_active)
+     return;
+
+   App::OnData(data); // tracing inside
+
+   NS_LOG_FUNCTION(this << data);
+
+   // NS_LOG_INFO ("Received content object: " << boost::cref(*data));
+
+   Name dataPacketName = data->getName();
+
+   shared_ptr<Data> relayData = make_shared<Data>(*data);
+
+   NS_LOG_INFO("< Received Data with name: " << dataPacketName.toUri());
+
+   if (!m_overlayPrefix.isPrefixOf(dataPacketName)) {
+     Name overlayPrefix(m_overlayPrefix.toUri() + dataPacketName.toUri());
+
+     relayData->setName(overlayPrefix);
+   }
+   else if (m_overlayPrefix.isPrefixOf(dataPacketName)) {
+     Name localPrefix = dataPacketName.getSubName(m_overlayPrefix.size());
+
+     relayData->setName(localPrefix);
+
+   }
+   // something went wrong
+   else {
+     NS_LOG_INFO("> Data with unknown name " << dataPacketName.toUri());
+     return;
+   }
+
+   // to create real wire encoding
+   relayData->wireEncode();
+
+   NS_LOG_INFO("< Relaying DATA packet with name: " << relayData->getName().toUri());
+
+   m_transmittedDatas(relayData, this, m_face);
+   m_appLink->onReceiveData(*relayData);
+}
+
+} // namespace ndn
+} // namespace ns3

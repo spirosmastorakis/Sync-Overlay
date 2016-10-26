@@ -29,7 +29,9 @@ namespace ndn {
 
 /**
  *
- * This scenario simulates 2 nodes running ChronoSync and a sync overlay node
+ * This scenario simulates 2 local broadcast networks with ChronoSync peers
+ * and 1 overlay Sync node per network. The overlay Sync node relays Sync
+ * Interests from a local network to the other through the overlay network.
  *
  */
 
@@ -47,13 +49,17 @@ main(int argc, char *argv[])
 
   // Creating nodes
   NodeContainer nodes;
-  nodes.Create(4);
+  nodes.Create(8);
 
   // Connecting nodes using two links
   PointToPointHelper p2p;
   p2p.Install(nodes.Get(0), nodes.Get(1));
   p2p.Install(nodes.Get(1), nodes.Get(2));
   p2p.Install(nodes.Get(1), nodes.Get(3));
+  p2p.Install(nodes.Get(0), nodes.Get(4));
+  p2p.Install(nodes.Get(4), nodes.Get(5));
+  p2p.Install(nodes.Get(5), nodes.Get(6));
+  p2p.Install(nodes.Get(5), nodes.Get(7));
 
   // Install NDN stack on all nodes
   StackHelper ndnHelper;
@@ -85,10 +91,32 @@ main(int argc, char *argv[])
   // peer2.SetAttribute("PeriodicPublishing", StringValue("true"));
   peer2.Install(nodes.Get(3)).Start(Seconds(2));
 
+  // Peer 3
+  ndn::AppHelper peer3("ChronoSyncApp");
+  peer3.SetAttribute("SyncPrefix", StringValue("/ndn/broadcast/sync"));
+  peer3.SetAttribute("UserPrefix", StringValue("/peer3"));
+  peer3.SetAttribute("RoutingPrefix", StringValue("/ndn"));
+  peer3.SetAttribute("MinNumberMessages", StringValue("1"));
+  peer3.SetAttribute("MaxNumberMessages", StringValue("100"));
+  // peer3.SetAttribute("PeriodicPublishing", StringValue("true"));
+  peer3.Install(nodes.Get(6)).Start(Seconds(2));
+
+  // Peer 4
+  ndn::AppHelper peer4("ChronoSyncApp");
+  peer4.SetAttribute("SyncPrefix", StringValue("/ndn/broadcast/sync"));
+  peer4.SetAttribute("UserPrefix", StringValue("/peer4"));
+  peer4.SetAttribute("RoutingPrefix", StringValue("/ndn"));
+  peer4.SetAttribute("MinNumberMessages", StringValue("1"));
+  peer4.SetAttribute("MaxNumberMessages", StringValue("100"));
+  // peer4.SetAttribute("PeriodicPublishing", StringValue("true"));
+  peer4.Install(nodes.Get(7)).Start(Seconds(2));
+
   // Overlay Node
   ndn::AppHelper overlayNode("ns3::ndn::SyncOverlayNode");
   overlayNode.SetAttribute("Prefix", StringValue("/ndn/broadcast/sync"));
+  overlayNode.SetAttribute("OverlayPrefix", StringValue("/Gsync"));
   overlayNode.Install(nodes.Get(0)).Start(Seconds(2));
+  overlayNode.Install(nodes.Get(4)).Start(Seconds(2));
 
   // Manually configure FIB routes
   ndn::FibHelper::AddRoute(nodes.Get(2), "/ndn/broadcast/sync", nodes.Get(1), 1);
@@ -97,6 +125,14 @@ main(int argc, char *argv[])
   ndn::FibHelper::AddRoute(nodes.Get(1), "/ndn/broadcast/sync", nodes.Get(3), 1);
   ndn::FibHelper::AddRoute(nodes.Get(1), "/ndn/broadcast/sync", nodes.Get(0), 1);
   ndn::FibHelper::AddRoute(nodes.Get(0), "/ndn/broadcast/sync", nodes.Get(1), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(0), "/Gsync/ndn/broadcast/sync", nodes.Get(4), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(4), "/Gsync/ndn/broadcast/sync", nodes.Get(0), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(4), "/ndn/broadcast/sync", nodes.Get(5), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(5), "/ndn/broadcast/sync", nodes.Get(4), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(5), "/ndn/broadcast/sync", nodes.Get(6), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(5), "/ndn/broadcast/sync", nodes.Get(7), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(6), "/ndn/broadcast/sync", nodes.Get(5), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(7), "/ndn/broadcast/sync", nodes.Get(5), 1);
 
   Simulator::Stop(Seconds(20.0));
 
