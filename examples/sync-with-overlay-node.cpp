@@ -33,6 +33,12 @@ namespace ndn {
  * and 1 overlay Sync node per network. The overlay Sync node relays Sync
  * Interests from a local network to the other through the overlay network.
  *
+ * Nodes 1, 2, 3 are the ChronoSync peers of local network 1, node 0 is the
+ * overlay node of local network 1. Nodes 5, 6, 7 are the ChronoSync peers of
+ * local network 2 and node 4 is the overlay node of network 2.
+ *
+ * Nodes 8, 9, 10, 11 consists the network topology between the 2 overlay nodes
+ *
  */
 
 int
@@ -49,14 +55,28 @@ main(int argc, char *argv[])
 
   // Creating nodes
   NodeContainer nodes;
-  nodes.Create(8);
+  nodes.Create(12);
 
   // Connecting nodes using two links
   PointToPointHelper p2p;
+  // Local Network 1
   p2p.Install(nodes.Get(0), nodes.Get(1));
   p2p.Install(nodes.Get(1), nodes.Get(2));
   p2p.Install(nodes.Get(1), nodes.Get(3));
-  p2p.Install(nodes.Get(0), nodes.Get(4));
+
+  // Network Topology between overlay nodes
+  p2p.Install(nodes.Get(0), nodes.Get(8));
+  p2p.Install(nodes.Get(0), nodes.Get(9));
+  p2p.Install(nodes.Get(8), nodes.Get(11));
+  p2p.Install(nodes.Get(8), nodes.Get(10));
+  p2p.Install(nodes.Get(8), nodes.Get(9));
+  p2p.Install(nodes.Get(9), nodes.Get(10));
+  p2p.Install(nodes.Get(9), nodes.Get(11));
+  p2p.Install(nodes.Get(10), nodes.Get(4));
+  p2p.Install(nodes.Get(10), nodes.Get(11));
+  p2p.Install(nodes.Get(11), nodes.Get(4));
+
+  // Local Network 2
   p2p.Install(nodes.Get(4), nodes.Get(5));
   p2p.Install(nodes.Get(5), nodes.Get(6));
   p2p.Install(nodes.Get(5), nodes.Get(7));
@@ -68,6 +88,7 @@ main(int argc, char *argv[])
 
   // Choosing forwarding strategy
   ndn::StrategyChoiceHelper::InstallAll("/ndn", "ndn:/localhost/nfd/strategy/multicast");
+  ndn::StrategyChoiceHelper::InstallAll("/Gsync", "ndn:/localhost/nfd/strategy/best-route2");
 
   // Installing applications
 
@@ -119,14 +140,42 @@ main(int argc, char *argv[])
   overlayNode.Install(nodes.Get(4)).Start(Seconds(2));
 
   // Manually configure FIB routes
+
+  // Local Network 1
   ndn::FibHelper::AddRoute(nodes.Get(2), "/ndn/broadcast/sync", nodes.Get(1), 1);
   ndn::FibHelper::AddRoute(nodes.Get(3), "/ndn/broadcast/sync", nodes.Get(1), 1);
   ndn::FibHelper::AddRoute(nodes.Get(1), "/ndn/broadcast/sync", nodes.Get(2), 1);
   ndn::FibHelper::AddRoute(nodes.Get(1), "/ndn/broadcast/sync", nodes.Get(3), 1);
   ndn::FibHelper::AddRoute(nodes.Get(1), "/ndn/broadcast/sync", nodes.Get(0), 1);
   ndn::FibHelper::AddRoute(nodes.Get(0), "/ndn/broadcast/sync", nodes.Get(1), 1);
-  ndn::FibHelper::AddRoute(nodes.Get(0), "/Gsync/ndn/broadcast/sync", nodes.Get(4), 1);
-  ndn::FibHelper::AddRoute(nodes.Get(4), "/Gsync/ndn/broadcast/sync", nodes.Get(0), 1);
+
+  // Network Topology between overlay nodes
+  ndn::FibHelper::AddRoute(nodes.Get(0), "/Gsync/ndn/broadcast/sync", nodes.Get(8), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(8), "/Gsync/ndn/broadcast/sync", nodes.Get(0), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(0), "/Gsync/ndn/broadcast/sync", nodes.Get(9), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(9), "/Gsync/ndn/broadcast/sync", nodes.Get(0), 1);
+
+  ndn::FibHelper::AddRoute(nodes.Get(8), "/Gsync/ndn/broadcast/sync", nodes.Get(9), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(9), "/Gsync/ndn/broadcast/sync", nodes.Get(8), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(8), "/Gsync/ndn/broadcast/sync", nodes.Get(11), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(11), "/Gsync/ndn/broadcast/sync", nodes.Get(8), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(8), "/Gsync/ndn/broadcast/sync", nodes.Get(10), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(10), "/Gsync/ndn/broadcast/sync", nodes.Get(8), 1);
+
+  ndn::FibHelper::AddRoute(nodes.Get(9), "/Gsync/ndn/broadcast/sync", nodes.Get(10), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(10), "/Gsync/ndn/broadcast/sync", nodes.Get(9), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(9), "/Gsync/ndn/broadcast/sync", nodes.Get(11), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(11), "/Gsync/ndn/broadcast/sync", nodes.Get(9), 1);
+
+  ndn::FibHelper::AddRoute(nodes.Get(10), "/Gsync/ndn/broadcast/sync", nodes.Get(4), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(4), "/Gsync/ndn/broadcast/sync", nodes.Get(10), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(10), "/Gsync/ndn/broadcast/sync", nodes.Get(11), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(11), "/Gsync/ndn/broadcast/sync", nodes.Get(10), 1);
+
+  ndn::FibHelper::AddRoute(nodes.Get(11), "/Gsync/ndn/broadcast/sync", nodes.Get(4), 1);
+  ndn::FibHelper::AddRoute(nodes.Get(4), "/Gsync/ndn/broadcast/sync", nodes.Get(11), 1);
+
+  // Local Network 2
   ndn::FibHelper::AddRoute(nodes.Get(4), "/ndn/broadcast/sync", nodes.Get(5), 1);
   ndn::FibHelper::AddRoute(nodes.Get(5), "/ndn/broadcast/sync", nodes.Get(4), 1);
   ndn::FibHelper::AddRoute(nodes.Get(5), "/ndn/broadcast/sync", nodes.Get(6), 1);
